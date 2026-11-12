@@ -1,5 +1,5 @@
 /* Offline-Speicher. Bei jeder Änderung an den Dateien die Versionsnummer erhöhen. */
-var CACHE = 'metronom-v3';
+var CACHE = 'metronom-v4';
 var FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', function (e) {

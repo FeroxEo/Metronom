@@ -273,7 +273,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
   /* ---------- Protokoll (Fehlersuche Sperrbildschirm) ---------- */
-  var VERSION = 'v3', diag = [];
+  var VERSION = 'v4', diag = [];
   function dlog(m) {
     var d = new Date(), z = function (n) { return (n < 10 ? '0' : '') + n; };
     diag.unshift(z(d.getHours()) + ':' + z(d.getMinutes()) + ':' + z(d.getSeconds()) + ' ' + m);
@@ -320,7 +320,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   var ctx = null, master = null, src = null, t0 = 0, curBeat = 0.6, curNum = 4;
   var clickCache = {}, silentUrl = null, silentFallback = false;
 
-  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (err) { /* ignorieren */ }
+  dlog('audioSession: ' + (navigator.audioSession ? 'vorhanden, Typ ' + navigator.audioSession.type + ' (unverändert)' : 'nicht vorhanden'));
 
   function getCtx() {
     if (!ctx) {
@@ -422,7 +422,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 
   /* Falls iOS die Sperrbildschirm-Tasten als Vor-/Zurückspulen im Hintergrundton ausführt (Home-Bildschirm-App):
      Der Sprung wird als Tempo +1 / -1 gedeutet. */
-  ['play', 'pause', 'seeking', 'error', 'stalled', 'waiting'].forEach(function (ev) { audio.addEventListener(ev, function () { dlog('Ton: ' + ev); }); });
+  ['play', 'playing', 'pause', 'seeking', 'error', 'stalled', 'waiting', 'ended'].forEach(function (ev) { audio.addEventListener(ev, function () { dlog('Ton: ' + ev); }); });
   var LOOPLEN = 60, lastCT = 0, lastCTwall = 0, handledUntil = 0, lastBump = 0;
   function bump(dir) {
     var n = performance.now();
@@ -430,7 +430,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     lastBump = n;
     setBpm(S.bpm + dir, true);
   }
-  audio.addEventListener('timeupdate', function () { lastCT = audio.currentTime; lastCTwall = performance.now(); });
+  var tuCount = 0;
+  audio.addEventListener('timeupdate', function () {
+    lastCT = audio.currentTime; lastCTwall = performance.now();
+    if (++tuCount % 20 === 1) dlog('Ton läuft: ' + audio.currentTime.toFixed(1) + ' s');
+  });
   audio.addEventListener('seeking', function () {
     if (!S.playing || performance.now() < handledUntil) return;
     var expected = lastCT + (performance.now() - lastCTwall) / 1000;
@@ -451,12 +455,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     var c = getCtx();
     try { if (c.state !== 'running') c.resume(); } catch (err) { /* ignorieren */ }
     S.playing = true;
+    dlog('Start');
     playBuffer(0, c.currentTime + 0.08);
     keepAlive();
     sync();
   }
   function stop() {
     S.playing = false;
+    dlog('Stopp');
     clearTimeout(rebuildTimer);
     if (src) { try { src.stop(); } catch (err) { /* ignorieren */ } src = null; }
     audio.pause();
@@ -555,6 +561,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     } catch (err) { /* ignorieren */ }
   }
   function initMedia() {
+    dlog('Media Session: ' + ('mediaSession' in navigator ? 'vorhanden' : 'FEHLT'));
     if (!('mediaSession' in navigator)) return;
     function set(a, f) { try { navigator.mediaSession.setActionHandler(a, f ? function () { dlog('Taste: ' + a); f(); } : null); } catch (err) { dlog('Taste nicht registrierbar: ' + a); } }
     function up() { handledUntil = performance.now() + 1500; setBpm(S.bpm + 1, true); }
